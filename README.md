@@ -4,6 +4,9 @@
 Spin a 20,000-particle Earth with an open hand, spread two hands to zoom, point at a country to
 inspect it, pinch to select it, and pinch-and-hold to purge every active attack in a shockwave.
 
+**Live:** [aegis-phi-nine.vercel.app](https://aegis-phi-nine.vercel.app) · mirror on
+[GitHub Pages](https://dev0558.github.io/aegis/)
+
 ![Aegis: particle globe with live attack arcs, a selected country and the live feed panel](docs/screenshot.jpg)
 
 > 🎬 **Demo GIF placeholder.** Record a short clip of the gestures (for example with Kap or
@@ -151,8 +154,19 @@ Dev-only extras:
 
 Pages is served over **https**, which browsers require for webcam access.
 
-**Vercel** also works with zero config: import the repository and Vercel detects Vite and runs
-`npm run build`. The model download runs as part of the build.
+### Deploy to Vercel
+
+Zero config: Vercel detects Vite, runs `npm run build` (which also fetches the model) and serves
+`dist/`. Either import the repository in the Vercel dashboard, or from the CLI:
+
+```bash
+vercel link        # once
+vercel             # preview deployment
+vercel --prod      # production
+```
+
+With the GitHub integration connected, every push to `main` deploys to production and every
+other branch or PR gets a preview URL.
 
 ## Plugging in a real threat feed
 
