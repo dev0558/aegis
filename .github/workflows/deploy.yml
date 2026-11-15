@@ -1,0 +1,64 @@
+# Lint, type-check and test every push / PR; build and publish to GitHub Pages
+# from main. Pages is served over https, which browsers require for the webcam.
+name: CI & Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run check
+
+      # The hand-landmarker model (~7.8 MB) is downloaded once by
+      # scripts/setup-mediapipe.mjs; cache it between runs.
+      - uses: actions/cache@v6
+        with:
+          path: public/mediapipe/hand_landmarker.task
+          key: mediapipe-hand-landmarker-float16-1
+
+      - run: npm run build
+        env:
+          # Project pages live under /<repo>/.
+          BASE_PATH: /${{ github.event.repository.name }}/
+
+      - if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v6
+
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

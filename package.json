@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "predev": "node scripts/setup-mediapipe.mjs",
     "prebuild": "node scripts/setup-mediapipe.mjs",
-    "prepreview": "node scripts/setup-mediapipe.mjs"
+    "prepreview": "node scripts/setup-mediapipe.mjs",
+    "check": "npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
