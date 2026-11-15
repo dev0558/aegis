@@ -1,0 +1,305 @@
+:root {
+  --bg: #07070a;
+  --fg: #ebe7df;
+  --dim: rgba(235, 231, 223, 0.52);
+  --faint: rgba(235, 231, 223, 0.14);
+  --hair: rgba(235, 231, 223, 0.08);
+  --glass: rgba(14, 14, 20, 0.55);
+  --accent: #80d7ff;
+  --danger: #ff8a8a;
+  --serif: 'Cormorant Garamond', Georgia, serif;
+  --sans: Inter, system-ui, -apple-system, sans-serif;
+  --gutter: 34px;
+  --top: 30px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+#cam {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  opacity: 0;
+  transition: opacity 0.7s ease;
+  filter: saturate(0.55) brightness(0.5) contrast(1.05);
+  pointer-events: none;
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+#scene:active {
+  cursor: grabbing;
+}
+
+#vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.65) 100%);
+}
+
+/* ---------- Brand ---------- */
+.brand {
+  position: fixed;
+  top: var(--top);
+  left: var(--gutter);
+  pointer-events: none;
+}
+h1 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.sub {
+  margin-top: 10px;
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* ---------- Buttons ---------- */
+.controls {
+  position: fixed;
+  top: var(--top);
+  right: var(--gutter);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+button {
+  font: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--faint);
+  padding: 9px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease,
+    color 0.25s ease;
+}
+button:hover:not(:disabled) {
+  border-color: rgba(235, 231, 223, 0.45);
+}
+button:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+button.on,
+button[aria-pressed='true'] {
+  background: var(--fg);
+  color: #0a0a0c;
+  border-color: var(--fg);
+}
+button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+button.ghost {
+  border-color: transparent;
+  background: none;
+  color: var(--dim);
+}
+button.ghost:hover {
+  color: var(--fg);
+}
+
+/* ---------- Stats ---------- */
+.stats {
+  position: fixed;
+  left: var(--gutter);
+  bottom: var(--top);
+  display: flex;
+  gap: 34px;
+  pointer-events: none;
+}
+.stats div {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.stats b {
+  display: block;
+  margin-top: 7px;
+  font-family: var(--serif);
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg);
+  min-width: 56px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Tooltip ---------- */
+.tooltip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  padding: 10px 14px 11px;
+  border: 1px solid var(--faint);
+  border-radius: 10px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  min-width: 140px;
+  will-change: transform;
+}
+.tooltip .t-name {
+  font-family: var(--serif);
+  font-size: 20px;
+  line-height: 1.1;
+}
+.tooltip .t-meta {
+  margin-top: 4px;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* ---------- Help sheet ---------- */
+.sheet {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: rgba(7, 7, 10, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 20;
+}
+.sheet[hidden] {
+  display: none;
+}
+.sheet-card {
+  width: min(720px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 26px 28px;
+  border: 1px solid var(--faint);
+  border-radius: 16px;
+  background: rgba(12, 12, 17, 0.9);
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+h2 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 28px;
+}
+.help-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.help-table th {
+  text-align: left;
+  font-weight: 400;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+  padding: 8px 10px 8px 0;
+  border-bottom: 1px solid var(--faint);
+}
+.help-table td {
+  padding: 9px 10px 9px 0;
+  border-bottom: 1px solid var(--hair);
+  vertical-align: top;
+  color: var(--dim);
+}
+.help-table td:first-child {
+  color: var(--fg);
+  font-family: var(--serif);
+  font-size: 16px;
+}
+kbd {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border: 1px solid var(--faint);
+  border-radius: 4px;
+  color: var(--fg);
+}
+.privacy {
+  margin-top: 16px;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+@media (max-width: 760px) {
+  :root {
+    --gutter: 16px;
+    --top: 18px;
+  }
+  h1 {
+    font-size: 30px;
+  }
+  .sub {
+    letter-spacing: 0.18em;
+    font-size: 9px;
+  }
+  .stats {
+    gap: 20px;
+  }
+  .stats b {
+    font-size: 19px;
+  }
+  .help-table th:nth-child(2),
+  .help-table td:nth-child(2) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

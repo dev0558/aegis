@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="Aegis: a gesture-controlled 3D cyber threat map. Hand tracking runs entirely in your browser."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%23ebe7df' stroke-width='1.5'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%2380d7ff'/%3E%3C/svg%3E"
+    />
+    <title>Aegis</title>
+  </head>
+  <body>
+    <video id="cam" playsinline muted aria-hidden="true"></video>
+    <canvas id="scene" aria-label="Interactive particle globe"></canvas>
+    <div id="vignette" aria-hidden="true"></div>
+
+    <header class="brand">
+      <h1>Aegis</h1>
+      <div class="sub">Gesture-controlled threat map · simulated feed</div>
+    </header>
+
+    <nav class="controls" aria-label="View controls">
+      <button
+        id="helpBtn"
+        type="button"
+        title="Gestures &amp; shortcuts (?)"
+        aria-haspopup="dialog"
+      >
+        Help
+      </button>
+    </nav>
+
+    <section class="stats" aria-label="Live statistics">
+      <div>Particles<b id="statParticles">—</b></div>
+      <div>Zoom<b id="statZoom">×1.00</b></div>
+      <div>FPS<b id="statFps">—</b></div>
+    </section>
+
+    <div id="tooltip" class="tooltip" role="status" aria-live="polite" hidden></div>
+
+    <div id="help" class="sheet" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
+      <div class="sheet-card">
+        <div class="sheet-head">
+          <h2 id="helpTitle">Controls</h2>
+          <button id="helpClose" type="button" class="ghost" aria-label="Close help">Close</button>
+        </div>
+        <table class="help-table">
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Gesture</th>
+              <th>Mouse / keys</th>
+            </tr>
+          </thead>
+          <tbody id="helpRows"></tbody>
+        </table>
+        <p class="privacy">
+          Camera frames are processed entirely on this device. Nothing is uploaded.
+        </p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
