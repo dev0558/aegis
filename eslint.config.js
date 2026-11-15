@@ -17,6 +17,13 @@ export default tseslint.config(
       '@typescript-eslint/no-non-null-assertion': 'off',
     },
   },
-  { files: ['**/*.js'], ...tseslint.configs.disableTypeChecked },
+  {
+    files: ['**/*.{js,mjs}'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ...tseslint.configs.disableTypeChecked.languageOptions,
+      globals: { ...globals.node },
+    },
+  },
   prettier,
 );

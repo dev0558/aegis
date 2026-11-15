@@ -16,11 +16,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "predev": "node scripts/setup-mediapipe.mjs",
+    "prebuild": "node scripts/setup-mediapipe.mjs",
+    "prepreview": "node scripts/setup-mediapipe.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
     "@fontsource/inter": "^5.3.0",
+    "@mediapipe/tasks-vision": "^1.2.3",
     "postprocessing": "^6.39.6",
     "three": "^0.187.0",
     "topojson-client": "^3.1.0",

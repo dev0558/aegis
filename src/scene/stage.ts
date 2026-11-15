@@ -19,6 +19,9 @@ export class Stage {
   height = 1;
   dpr = 1;
   private maxDpr: number;
+  /** Horizontal shift of the scene centre in CSS px (negative = left). */
+  private shift = 0;
+  private targetShift = 0;
   private slowTime = 0;
   private fastTime = 0;
 
@@ -57,6 +60,34 @@ export class Stage {
     this.renderer.setSize(this.width, this.height, false);
     this.fx.setSize(this.width, this.height);
     this.camera.aspect = this.width / this.height;
+    this.applyShift();
+  }
+
+  /** Shift the globe left/right (e.g. to make room for a side panel). */
+  setShiftTarget(px: number): void {
+    this.targetShift = px;
+  }
+
+  /** Transparent canvas so the webcam video behind it shows through. */
+  setTransparent(on: boolean): void {
+    this.renderer.setClearAlpha(on ? 0 : 1);
+  }
+
+  update(dt: number): void {
+    if (Math.abs(this.targetShift - this.shift) < 0.25) {
+      if (this.shift === this.targetShift) return;
+      this.shift = this.targetShift;
+    } else {
+      this.shift += (this.targetShift - this.shift) * (1 - Math.exp(-8 * dt));
+    }
+    this.applyShift();
+  }
+
+  private applyShift(): void {
+    const w = this.width;
+    const h = this.height;
+    if (this.shift === 0) this.camera.clearViewOffset();
+    else this.camera.setViewOffset(w, h, -this.shift, 0, w, h);
     this.camera.updateProjectionMatrix();
   }
 

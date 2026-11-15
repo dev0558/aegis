@@ -18,6 +18,7 @@
     <video id="cam" playsinline muted aria-hidden="true"></video>
     <canvas id="scene" aria-label="Interactive particle globe"></canvas>
     <div id="vignette" aria-hidden="true"></div>
+    <canvas id="overlay" aria-hidden="true"></canvas>
 
     <header class="brand">
       <h1>Aegis</h1>
@@ -25,6 +26,15 @@
     </header>
 
     <nav class="controls" aria-label="View controls">
+      <button id="camBtn" type="button" aria-pressed="false" title="Webcam background (B)">
+        Webcam
+      </button>
+      <button id="skelBtn" type="button" aria-pressed="true" title="Hand skeleton overlay (H)">
+        Hands
+      </button>
+      <button id="pauseBtn" type="button" aria-pressed="false" title="Pause the feed (P)">
+        Pause
+      </button>
       <button
         id="helpBtn"
         type="button"
@@ -36,10 +46,20 @@
     </nav>
 
     <section class="stats" aria-label="Live statistics">
-      <div>Particles<b id="statParticles">—</b></div>
-      <div>Zoom<b id="statZoom">×1.00</b></div>
-      <div>FPS<b id="statFps">—</b></div>
+      <div>Events / s<b id="statEps">0.0</b></div>
+      <div>Total<b id="statTotal">0</b></div>
+      <div>In flight<b id="statActive">0</b></div>
+      <div class="stat-fps">FPS<b id="statFps">—</b></div>
     </section>
+
+    <aside id="panel" class="panel" aria-label="Live threat feed"></aside>
+
+    <div id="indicator" class="indicator" data-mode="none" hidden>
+      <i class="ind-dot" aria-hidden="true"></i>
+      <span class="ind-label" role="status" aria-live="polite">No hands</span>
+      <span class="ind-meta"></span>
+      <span class="ind-bar" hidden><span></span></span>
+    </div>
 
     <div id="tooltip" class="tooltip" role="status" aria-live="polite" hidden></div>
 
@@ -60,7 +80,34 @@
           <tbody id="helpRows"></tbody>
         </table>
         <p class="privacy">
-          Camera frames are processed entirely on this device. Nothing is uploaded.
+          Hand tracking runs entirely in your browser. Your camera stream never leaves this device.
+        </p>
+      </div>
+    </div>
+
+    <div id="start" class="start" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+      <div class="start-card">
+        <h2 id="startTitle" class="start-title">Aegis</h2>
+        <p class="start-lede">
+          A live map of simulated cyber attacks,<br />steered with your hands.
+        </p>
+        <button id="startCam" type="button" class="primary">Enable camera</button>
+        <div id="startMsg" class="start-msg" role="status" aria-live="polite"></div>
+        <div id="startDetail" class="start-detail"></div>
+        <button id="startMouse" type="button" class="ghost">Continue with mouse</button>
+        <p class="start-privacy">
+          Hand tracking runs entirely in your browser.<br />Your camera stream never leaves this
+          device.
+        </p>
+      </div>
+    </div>
+
+    <div id="fatal" class="start" role="alertdialog" aria-labelledby="fatalTitle" hidden>
+      <div class="start-card">
+        <h2 id="fatalTitle" class="start-title">Aegis</h2>
+        <p class="start-msg err">
+          This browser or device does not support WebGL&nbsp;2, which Aegis needs to draw the globe.
+          Try a recent Chrome, Edge, Firefox or Safari with hardware acceleration enabled.
         </p>
       </div>
     </div>

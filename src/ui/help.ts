@@ -8,16 +8,20 @@ export interface HelpRow {
 export const HELP_ROWS: HelpRow[] = [
   {
     action: 'Rotate',
-    gesture: 'One open hand, move it',
+    gesture: 'One open hand: move it (flick and let go for inertia)',
     keys: `Drag · ${k('←')} ${k('→')} ${k('↑')} ${k('↓')}`,
   },
   {
     action: 'Zoom',
-    gesture: 'Two hands: spread / bring together',
+    gesture: 'Two hands: spread apart / bring together',
     keys: `Wheel · trackpad pinch · ${k('+')} ${k('−')}`,
   },
-  { action: 'Reset view', gesture: '—', keys: k('0') },
   { action: 'Inspect country', gesture: 'Point with index finger', keys: 'Hover' },
+  { action: 'Pause feed', gesture: '—', keys: `Pause button · ${k('P')}` },
+  { action: 'Reset view', gesture: '—', keys: k('0') },
+  { action: 'Event log', gesture: '—', keys: k('L') },
+  { action: 'Webcam background', gesture: '—', keys: `Webcam button · ${k('B')}` },
+  { action: 'Hand skeleton', gesture: '—', keys: `Hands button · ${k('H')}` },
   { action: 'Help', gesture: '—', keys: `${k('?')} · ${k('Esc')} to close` },
 ];
 

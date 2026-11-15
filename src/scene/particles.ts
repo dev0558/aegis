@@ -24,6 +24,8 @@ export class ParticleEarth {
   readonly points: THREE.Points;
   readonly material: THREE.ShaderMaterial;
   readonly count: number;
+  private readonly heatData = new Uint8Array(256);
+  private readonly heatTex: THREE.DataTexture;
 
   constructor(map: CountryMap, opts: Partial<ParticleOptions> = {}) {
     const o = { ...DEFAULTS, ...opts };
@@ -86,6 +88,9 @@ export class ParticleEarth {
     geo.setAttribute('aRand', new THREE.BufferAttribute(rand, 4));
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 4);
 
+    this.heatTex = new THREE.DataTexture(this.heatData, 256, 1, THREE.RedFormat);
+    this.heatTex.needsUpdate = true;
+
     this.material = new THREE.ShaderMaterial({
       vertexShader: vert,
       fragmentShader: frag,
@@ -99,6 +104,7 @@ export class ParticleEarth {
         uBurstStrength: { value: 0 },
         uCharge: { value: 0 },
         uMotion: { value: 1 },
+        uHeat: { value: this.heatTex },
       },
       transparent: true,
       depthWrite: false,
@@ -137,7 +143,17 @@ export class ParticleEarth {
     this.u('uBurstStrength').value = strength;
   }
 
+  /** Per-country heat in 0..1, indexed by country index (1-based). */
+  setHeat(values: ReadonlyMap<number, number>): void {
+    this.heatData.fill(0);
+    for (const [idx, v] of values) {
+      if (idx > 0 && idx < 256) this.heatData[idx] = Math.round(Math.min(1, Math.max(0, v)) * 255);
+    }
+    this.heatTex.needsUpdate = true;
+  }
+
   dispose(): void {
+    this.heatTex.dispose();
     this.points.geometry.dispose();
     this.material.dispose();
   }

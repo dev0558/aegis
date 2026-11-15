@@ -28,7 +28,7 @@ export interface PickResult {
 export class Globe {
   readonly group = new THREE.Group();
   readonly earth: ParticleEarth;
-  /** Invisible depth-only sphere so arcs behind the planet are hidden. */
+  /** Depth-writing inner sphere so arcs behind the planet are hidden. */
   readonly occluder: THREE.Mesh;
 
   yaw = -0.3;
@@ -42,6 +42,8 @@ export class Globe {
   private idleTime = 0;
   zoom = 1;
   private targetZoom = 1;
+  /** Extra distance factor so the globe fits narrow (portrait) viewports. */
+  fit = 1;
   autoRotate = true;
 
   private readonly ray = new THREE.Raycaster();
@@ -55,7 +57,10 @@ export class Globe {
 
     this.occluder = new THREE.Mesh(
       new THREE.SphereGeometry(0.985, 48, 32),
-      new THREE.MeshBasicMaterial({ colorWrite: false }),
+      // Writes depth (hides arcs behind the planet) and paints a translucent dark
+      // disc, invisible on the dark background but giving the globe a body over
+      // the webcam video.
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55 }),
     );
     this.occluder.renderOrder = -1;
     this.group.add(this.occluder);
@@ -118,7 +123,12 @@ export class Globe {
   }
 
   get cameraDistance(): number {
-    return BASE_DISTANCE / this.zoom;
+    return (BASE_DISTANCE * this.fit) / this.zoom;
+  }
+
+  /** Keep the globe's on-screen diameter similar in portrait and landscape. */
+  fitToAspect(aspect: number): void {
+    this.fit = aspect < 1 ? Math.max(1, 0.95 / aspect) : 1;
   }
 
   // ---- simulation --------------------------------------------------------
