@@ -45,6 +45,8 @@ export class Globe {
   /** Extra distance factor so the globe fits narrow (portrait) viewports. */
   fit = 1;
   autoRotate = true;
+  /** Extra spin while a purge is charging (0..1). */
+  chargeSpin = 0;
 
   private readonly ray = new THREE.Raycaster();
   private readonly inv = new THREE.Matrix4();
@@ -81,6 +83,11 @@ export class Globe {
       }),
     );
     if (!debugFlag('noatmo')) this.group.add(atmo);
+  }
+
+  /** Opacity of the dark planet body (faded while a purge burst scatters the particles). */
+  setBodyOpacity(o: number): void {
+    (this.occluder.material as THREE.MeshBasicMaterial).opacity = o;
   }
 
   // ---- input -------------------------------------------------------------
@@ -163,6 +170,7 @@ export class Globe {
       this.pitch = clamp(this.pitch, -PITCH_LIMIT, PITCH_LIMIT);
       this.pitchVel = 0;
     }
+    this.yaw += dt * this.chargeSpin * 2.2;
     this.yaw = ((((this.yaw + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) - Math.PI;
     this.zoom += (this.targetZoom - this.zoom) * damp(7, dt);
     this.group.rotation.set(this.pitch, this.yaw, 0, 'XYZ');

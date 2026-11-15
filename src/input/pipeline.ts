@@ -44,7 +44,11 @@ export class HandPipeline {
     }
   }
 
-  process(f: PipelineFrame) {
+  /**
+   * @param isTarget optional hit test (view-space point → is there a selectable
+   *                 target, e.g. a country?) used to decide tap-select vs charge.
+   */
+  process(f: PipelineFrame, isTarget?: (p: Pt) => boolean) {
     const t = f.t / 1000;
     const aspect = f.videoWidth / Math.max(1, f.videoHeight);
     const assigned = this.assign(f.hands, t);
@@ -60,7 +64,11 @@ export class HandPipeline {
       smoothed[i] = sm;
       features[i] = extractFeatures(sm, aspect);
     });
-    const out = stepGestures(this.state, { t, aspect, hands: features });
+    const targets: [boolean, boolean] = [
+      !!(features[0] && isTarget?.(features[0].pinchPoint)),
+      !!(features[1] && isTarget?.(features[1].pinchPoint)),
+    ];
+    const out = stepGestures(this.state, { t, aspect, hands: features, targets });
     this.state = out.state;
     return { ...out, smoothed, features };
   }

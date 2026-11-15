@@ -38,10 +38,15 @@ export class Panel {
   private readonly state: HTMLElement;
   private readonly toggleBtn: HTMLButtonElement;
   private readonly filterNote: HTMLElement;
-  private queue: AttackEvent[] = [];
-  private filter: (e: AttackEvent) => boolean = () => true;
+  private readonly legendItems = new Map<AttackType, HTMLButtonElement>();
+  private queue: (AttackEvent | string)[] = [];
+  private typeFilter: AttackType | null = null;
+  private country: { iso: string; name: string } | null = null;
   private _open: boolean;
   onToggle: (open: boolean) => void = () => undefined;
+  /** Legend click: toggle a type filter. */
+  onTypeClick: (t: AttackType) => void = () => undefined;
+  onClearCountry: () => void = () => undefined;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -60,19 +65,32 @@ export class Panel {
     body.id = 'panelBody';
 
     const legend = el('ul', 'legend');
+    legend.setAttribute('aria-label', 'Attack types (click to filter)');
     for (const t of ATTACK_TYPES) {
       const info = ATTACK_TYPE_INFO[t];
       const li = el('li');
-      li.dataset['type'] = t;
+      const btn = el('button', 'legend-item');
+      btn.type = 'button';
+      btn.dataset['type'] = t;
+      btn.setAttribute('aria-pressed', 'false');
+      btn.title = `Show only ${info.label}`;
+      btn.addEventListener('click', () => {
+        this.onTypeClick(t);
+      });
       const dot = el('i', 'dot');
       dot.style.setProperty('--c', info.color);
       const count = el('b', '', '0');
       this.typeCounts.set(t, count);
-      li.append(dot, el('span', '', info.label), count);
+      btn.append(dot, el('span', '', info.label), count);
+      li.append(btn);
+      this.legendItems.set(t, btn);
       legend.append(li);
     }
     this.filterNote = el('div', 'filter-note');
     this.filterNote.hidden = true;
+    this.filterNote.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('button')) this.onClearCountry();
+    });
 
     this.topSrc = el('ol', 'top');
     this.topDst = el('ol', 'top');
@@ -129,14 +147,56 @@ export class Panel {
     this.state.classList.toggle('paused', paused);
   }
 
-  /** Restrict the log to matching events (e.g. a selected country). */
-  setFilter(fn: ((e: AttackEvent) => boolean) | null, note = ''): void {
-    this.filter = fn ?? (() => true);
-    this.filterNote.hidden = !fn;
-    this.filterNote.textContent = note;
+  private matches = (e: AttackEvent): boolean =>
+    (this.typeFilter === null || e.type === this.typeFilter) &&
+    (this.country === null || e.source === this.country.iso || e.target === this.country.iso);
+
+  /** Show only one attack type (null = all). */
+  setTypeFilter(t: AttackType | null): void {
+    this.typeFilter = t;
+    for (const [type, btn] of this.legendItems) {
+      const on = t === null || t === type;
+      btn.classList.toggle('off', !on);
+      btn.setAttribute('aria-pressed', String(t === type));
+    }
+    this.resetLog();
+  }
+
+  /** Restrict the log to one country (null = all). */
+  setCountry(c: { iso: string; name: string } | null): void {
+    this.country = c;
+    this.filterNote.hidden = !c;
+    this.resetLog();
+  }
+
+  /** Add a system line (e.g. "Purged 37 arcs") to the log. */
+  note(text: string): void {
+    this.queue.push(text);
+  }
+
+  private resetLog(): void {
+    // New filter: the log restarts with matching events from here on.
+    this.log.replaceChildren();
+    this.queue = [];
+  }
+
+  private renderCountryNote(stats: FeedStats): void {
+    if (!this.country) return;
+    const s = stats.country(this.country.iso);
+    const name = el('span', 'fn-name', this.country.name);
+    const meta = el(
+      'span',
+      'fn-meta',
+      s ? `${s.asTarget} in · ${s.asSource} out` : 'No activity yet',
+    );
+    const clear = el('button', 'ghost fn-clear', 'Clear');
+    clear.type = 'button';
+    clear.title = 'Clear selection (Esc)';
+    this.filterNote.replaceChildren(name, meta, clear);
   }
 
   push(e: AttackEvent): void {
+    if (!this.matches(e)) return;
     this.queue.push(e);
     if (this.queue.length > MAX_ROWS) this.queue.splice(0, this.queue.length - MAX_ROWS);
   }
@@ -146,15 +206,16 @@ export class Panel {
     for (const t of ATTACK_TYPES) {
       this.typeCounts.get(t)!.textContent = stats.byType[t].toLocaleString('en-US');
     }
-    if (!this._open) {
-      this.queue = this.queue.filter(this.filter).slice(-MAX_ROWS);
-      return;
-    }
-    const rows = this.queue.filter(this.filter);
+    if (!this._open) return;
+    this.renderCountryNote(stats);
+    const rows = this.queue;
     this.queue = [];
     if (rows.length) {
       const frag = document.createDocumentFragment();
-      for (let i = rows.length - 1; i >= 0; i--) frag.append(this.row(rows[i]!));
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const r = rows[i]!;
+        frag.append(typeof r === 'string' ? this.systemRow(r) : this.row(r));
+      }
       this.log.prepend(frag);
       while (this.log.childElementCount > MAX_ROWS) this.log.lastElementChild!.remove();
     }
@@ -174,6 +235,16 @@ export class Panel {
       return li;
     });
     list.replaceChildren(...items);
+  }
+
+  private systemRow(text: string): HTMLLIElement {
+    const li = el('li', 'system');
+    li.append(
+      el('i', 'dot'),
+      el('span', 'route', text),
+      el('time', '', timeFmt.format(Date.now())),
+    );
+    return li;
   }
 
   private row(e: AttackEvent): HTMLLIElement {

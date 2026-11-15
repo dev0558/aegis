@@ -10,7 +10,8 @@ import {
 } from '../src/input/gestures';
 import { HandPipeline } from '../src/input/pipeline';
 import type { RecordedFixture } from '../src/input/recorder';
-import { FIST, OPEN, syntheticHand, type HandPose } from './fixtures/syntheticHand';
+import { FIST, OPEN, POINT, syntheticHand, type HandPose } from './fixtures/syntheticHand';
+import { filterForCount } from '../src/input/gestureController';
 
 const FPS = 30;
 const VW = 1280;
@@ -20,6 +21,9 @@ interface Timed {
   t: number;
   e: GestureEvent;
 }
+
+/** Pinch points on the left half of the frame are "over a country". */
+const leftIsTarget = (p: { x: number }) => p.x < 0.5;
 
 /** Run a scripted sequence of poses through the full pipeline. */
 function simulate(seconds: number, poses: (t: number) => (HandPose | null)[]) {
@@ -31,7 +35,10 @@ function simulate(seconds: number, poses: (t: number) => (HandPose | null)[]) {
     const hands = poses(t)
       .filter((h): h is HandPose => h !== null)
       .map((h) => ({ landmarks: syntheticHand({ aspect: VW / VH, ...h }) }));
-    const out = p.process({ t: 1000 + t * 1000, hands, videoWidth: VW, videoHeight: VH });
+    const out = p.process(
+      { t: 1000 + t * 1000, hands, videoWidth: VW, videoHeight: VH },
+      leftIsTarget,
+    );
     for (const e of out.events) events.push({ t, e });
     modes.push({ t, mode: out.state.mode, label: out.indicator.label });
   }
@@ -83,7 +90,7 @@ describe('rotate (one open hand)', () => {
   it('stops rotating when the hand closes into a fist', () => {
     const { events, modes } = simulate(1.2, (t) => [{ fingers: t < 0.6 ? OPEN : FIST }]);
     expect(types(events)).toContain('rotateEnd');
-    expect(modeAt(modes, 1.1)).toBe('idle');
+    expect(modeAt(modes, 1.1)).toBe('fist');
   });
 });
 
@@ -138,6 +145,129 @@ describe('zoom (two hands)', () => {
   });
 });
 
+describe('point', () => {
+  it('emits reticle positions at the index fingertip after a short debounce', () => {
+    const { events, modes } = simulate(0.6, () => [{ fingers: POINT, cx: 0.4, cy: 0.5 }]);
+    const pts = events.filter((x) => x.e.type === 'point');
+    expect(pts[0]!.t).toBeGreaterThanOrEqual(GESTURE_CONFIG.pointEngage - 1e-9);
+    const last = pts.at(-1)!.e;
+    // Index tip sits above the palm (smaller y).
+    expect(last.type === 'point' && last.pos.y).toBeLessThan(0.5);
+    expect(modeAt(modes, 0.5)).toBe('point');
+  });
+
+  it('ends pointing when the pose changes, and never applies a filter', () => {
+    const { events } = simulate(1.4, (t) => [{ fingers: t < 0.8 ? POINT : OPEN, cx: 0.4 }]);
+    expect(types(events)).toContain('pointEnd');
+    expect(types(events)).not.toContain('count');
+  });
+});
+
+describe('pinch', () => {
+  const pinchAt = (cx: number, from: number, to: number) => (t: number) => [
+    { fingers: OPEN, cx, pinch: t >= from && t < to },
+  ];
+
+  it('a quick pinch on a country selects it', () => {
+    const { events } = simulate(1.2, pinchAt(0.3, 0.5, 0.75));
+    expect(types(events)).toContain('select');
+    expect(types(events)).not.toContain('chargeStart');
+  });
+
+  it('a quick pinch on empty space deselects', () => {
+    const { events } = simulate(1.2, pinchAt(0.7, 0.5, 0.65));
+    expect(types(events)).toContain('deselect');
+    expect(types(events)).not.toContain('select');
+  });
+
+  it('pinch and hold on empty space charges, release fires the purge', () => {
+    const { events, modes } = simulate(2.5, pinchAt(0.7, 0.4, 2.0));
+    const start = events.find((x) => x.e.type === 'chargeStart')!;
+    expect(start.t - 0.4).toBeGreaterThanOrEqual(GESTURE_CONFIG.chargeDelay - 0.05);
+    expect(modeAt(modes, 1.5)).toBe('charge');
+    const end = events.find((x) => x.e.type === 'chargeEnd')!;
+    expect(end.e).toEqual({ type: 'chargeEnd', commit: true });
+    expect(end.t).toBeGreaterThan(1.9);
+    expect(types(events)).not.toContain('deselect');
+  });
+
+  it('holding a pinch on a country never charges', () => {
+    const { events } = simulate(2.5, pinchAt(0.3, 0.4, 2.0));
+    expect(types(events)).not.toContain('chargeStart');
+    expect(types(events)).not.toContain('select'); // too long to be a tap
+  });
+
+  it('cancels (does not fire) the charge if the hand is lost', () => {
+    const { events } = simulate(2, (t) =>
+      t < 1.2 ? [{ fingers: OPEN, cx: 0.7, pinch: t > 0.3 }] : [],
+    );
+    const end = events.find((x) => x.e.type === 'chargeEnd')!;
+    expect(end.e).toEqual({ type: 'chargeEnd', commit: false });
+  });
+
+  it('a fist is not mistaken for a pinch', () => {
+    const { events } = simulate(0.8, () => [{ fingers: FIST, cx: 0.7 }]);
+    expect(types(events)).not.toContain('chargeStart');
+  });
+});
+
+describe('fist', () => {
+  it('toggles pause after being held for 1 s, once per fist', () => {
+    const { events } = simulate(4, (t) => [{ fingers: t < 2.2 || t > 2.6 ? FIST : OPEN }]);
+    const toggles = events.filter((x) => x.e.type === 'togglePause');
+    expect(toggles).toHaveLength(2);
+    expect(toggles[0]!.t).toBeGreaterThanOrEqual(GESTURE_CONFIG.fistHold - 1e-9);
+  });
+
+  it('a short fist does nothing', () => {
+    const { events } = simulate(1.5, (t) => [{ fingers: t > 0.3 && t < 0.9 ? FIST : OPEN }]);
+    expect(types(events)).not.toContain('togglePause');
+  });
+});
+
+describe('finger-count filters', () => {
+  const thumbFirst = (n: number) => [0, 1, 2, 3, 4].map((i) => i < n) as typeof OPEN;
+
+  it('applies a count held still for 0.4 s, once', () => {
+    const { events } = simulate(1.5, () => [{ fingers: thumbFirst(3) }]);
+    const counts = events.filter((x) => x.e.type === 'count');
+    expect(counts).toHaveLength(1);
+    expect(counts[0]!.e).toEqual({ type: 'count', n: 3 });
+    expect(counts[0]!.t).toBeGreaterThanOrEqual(GESTURE_CONFIG.countHold - 1e-9);
+  });
+
+  it('does not apply a count while the hand is moving', () => {
+    const { events } = simulate(1.5, (t) => [{ fingers: thumbFirst(2), cx: 0.2 + 0.5 * t }]);
+    expect(types(events)).not.toContain('count');
+  });
+
+  it('stopping a rotation does not reset the filter to "all"', () => {
+    const { events } = simulate(2.5, (t) => [{ fingers: OPEN, cx: t < 1 ? 0.2 + 0.4 * t : 0.6 }]);
+    expect(types(events)).toContain('rotate');
+    expect(types(events)).not.toContain('count');
+  });
+
+  it('a fresh open hand does not reset the filter either', () => {
+    const { events } = simulate(1.5, () => [{ fingers: OPEN }]);
+    expect(types(events)).not.toContain('count');
+  });
+
+  it('changing from a count to an open hand while still selects "all"', () => {
+    const { events } = simulate(2.5, (t) => [{ fingers: t < 1 ? thumbFirst(2) : OPEN }]);
+    const counts = events.filter((x) => x.e.type === 'count').map((x) => x.e);
+    expect(counts).toEqual([
+      { type: 'count', n: 2 },
+      { type: 'count', n: 5 },
+    ]);
+  });
+
+  it('maps counts to filters: 1–4 types, 5 all', () => {
+    expect(filterForCount(1)).toBe('ddos');
+    expect(filterForCount(4)).toBe('phishing');
+    expect(filterForCount(5)).toBeNull();
+  });
+});
+
 describe('reducer properties', () => {
   const feat = (ext: number[], x = 0.5): HandFeatures => ({
     palm: { x, y: 0.5 },
@@ -165,6 +295,20 @@ describe('reducer properties', () => {
   it('is deterministic: replaying the same frames yields identical events', () => {
     const run = () => simulate(1, (t) => [{ fingers: OPEN, cx: 0.3 + 0.3 * t }]).events;
     expect(run()).toEqual(run());
+  });
+
+  it('two hands cancel a charging pinch without firing', () => {
+    const { events } = simulate(2, (t) =>
+      t < 1
+        ? [{ fingers: OPEN, cx: 0.7, pinch: t > 0.2 }]
+        : [
+            { fingers: OPEN, cx: 0.3 },
+            { fingers: OPEN, cx: 0.7 },
+          ],
+    );
+    const end = events.find((x) => x.e.type === 'chargeEnd')!;
+    expect(end.e).toEqual({ type: 'chargeEnd', commit: false });
+    expect(types(events)).toContain('zoomStart');
   });
 });
 

@@ -5,6 +5,8 @@
  *
  * Screen coordinates are CSS pixels relative to the viewport.
  */
+import type { AttackType } from '../data/types';
+
 export type Action =
   /** Directly rotate by an angle (drag). Radians. */
   | { type: 'rotateBy'; yaw: number; pitch: number }
@@ -17,6 +19,16 @@ export type Action =
   | { type: 'resetView' }
   /** Pointer / reticle position for hover picking; null when nothing points. */
   | { type: 'hover'; x: number; y: number }
-  | { type: 'hoverEnd' };
+  | { type: 'hoverEnd' }
+  /** Select the country at a screen point (empty space deselects). */
+  | { type: 'select'; x: number; y: number }
+  | { type: 'deselect' }
+  /** Purge charge: starts at a screen point, may follow it, fires on commit. */
+  | { type: 'chargeStart'; x: number; y: number }
+  | { type: 'chargeMove'; x: number; y: number }
+  | { type: 'chargeEnd'; commit: boolean }
+  | { type: 'togglePause' }
+  /** Show only one attack type (null = all). */
+  | { type: 'setFilter'; filter: AttackType | null };
 
 export type ActionType = Action['type'];

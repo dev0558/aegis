@@ -4,12 +4,14 @@ import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import './ui/styles.css';
 
+import { Vector3 } from 'three';
 import type { Action } from './app/actions';
 import { createBus } from './app/bus';
 import { createStore } from './app/store';
 import { SimulatedFeed } from './data/simulator';
 import { FeedStats } from './data/stats';
-import type { ThreatFeed } from './data/types';
+import { countryInfo } from './data/countries';
+import { ATTACK_TYPE_INFO, ATTACK_TYPES, type AttackType, type ThreatFeed } from './data/types';
 import { GestureController } from './input/gestureController';
 import { HandTracker, TrackerError } from './input/handTracker';
 import { attachMouseFallback } from './input/mouseFallback';
@@ -18,6 +20,7 @@ import { AttackArcs } from './scene/arcs';
 import { CountryMap } from './scene/countryMap';
 import { Globe } from './scene/globe';
 import { FOV, Stage } from './scene/stage';
+import { smoothstep } from './util/math';
 import { createStars } from './scene/stars';
 import { HELP_ROWS, HelpSheet } from './ui/help';
 import { FpsMeter, Hud } from './ui/hud';
@@ -113,6 +116,7 @@ function boot(): void {
     pauseBtn.setAttribute('aria-pressed', String(p));
     pauseBtn.textContent = p ? 'Resume' : 'Pause';
     panel.setPaused(p);
+    panel.note(p ? 'Feed paused' : 'Feed resumed');
   };
   pauseBtn.addEventListener('click', () => {
     setPaused(!feed.paused);
@@ -133,6 +137,58 @@ function boot(): void {
   window.addEventListener('resize', updateShift);
   updateShift();
 
+  // ---- picking, selection, filters -----------------------------------------
+  const pickAt = (x: number, y: number) =>
+    globe.pick((x / stage.width) * 2 - 1, -(y / stage.height) * 2 + 1, stage.camera, map);
+  const countryName = (index: number): string => {
+    const c = map.byIndex(index);
+    return c ? (countryInfo(c.iso)?.name ?? c.name) : '';
+  };
+
+  let selected = 0;
+  const setSelected = (index: number) => {
+    selected = index;
+    globe.earth.setSelected(index);
+    arcs.setSelected(index);
+    const c = map.byIndex(index);
+    panel.setCountry(c ? { iso: c.iso, name: countryName(index) } : null);
+  };
+  panel.onClearCountry = () => {
+    setSelected(0);
+  };
+
+  let typeFilter: AttackType | null = null;
+  const setTypeFilter = (f: AttackType | null) => {
+    typeFilter = f;
+    arcs.setTypeMask(ATTACK_TYPES.map((t) => f === null || t === f));
+    panel.setTypeFilter(f);
+  };
+  panel.onTypeClick = (t) => {
+    setTypeFilter(typeFilter === t ? null : t);
+  };
+
+  /** Screen position of the globe's centre (for the purge shockwave). */
+  const globeCenter = () => {
+    const v = new Vector3().applyMatrix4(globe.group.matrixWorld).project(stage.camera);
+    return { x: ((v.x + 1) / 2) * stage.width, y: ((1 - v.y) / 2) * stage.height };
+  };
+
+  // ---- purge: charge then release ---------------------------------------------
+  const CHARGE_TIME = 1.3; // s to full charge
+  let charge: { x: number; y: number; start: number; level: number } | null = null;
+  let chargeVis = 0; // smoothed contraction shown on the particles
+  let burst: { start: number; strength: number } | null = null;
+
+  const purge = (level: number) => {
+    const t = sceneTime();
+    const cleared = arcs.activeCount(t);
+    arcs.clear();
+    burst = { start: t, strength: Math.max(0.35, level) };
+    const c = globeCenter();
+    overlay.burst(c.x, c.y, level, performance.now(), store.get().reducedMotion);
+    panel.note(`Purge · cleared ${cleared} arc${cleared === 1 ? '' : 's'}`);
+  };
+
   // ---- UI ------------------------------------------------------------------
   const hud = new Hud(['statEps', 'statTotal', 'statActive', 'statFps']);
   const tooltip = new Tooltip($('tooltip'));
@@ -144,7 +200,12 @@ function boot(): void {
   // ---- hand tracking -------------------------------------------------------
   const video = $('cam') as HTMLVideoElement;
   const tracker = new HandTracker(video);
-  const gestures = new GestureController(emit, () => globe.zoom);
+  const gestures = new GestureController({
+    emit,
+    zoom: () => globe.zoom,
+    isTargetAt: (p) => (pickAt(p.x, p.y)?.country ?? 0) > 0,
+    charge: () => charge?.level ?? 0,
+  });
   tracker.onFrame = (f) => {
     gestures.onFrame(f);
   };
@@ -213,14 +274,17 @@ function boot(): void {
     target: canvas,
     emit,
     radiansPerPixel: () => globe.radiansPerPixel(stage.height, FOV),
+    isTargetAt: (x, y) => (pickAt(x, y)?.country ?? 0) > 0,
+    center: globeCenter,
   });
 
   window.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey || start.visible) return;
     if (e.key === '?' || (e.key === '/' && e.shiftKey)) help.toggle();
-    else if (e.key === 'Escape' && help.isOpen) help.close();
-    else if (e.key === 'p' || e.key === 'P') setPaused(!feed.paused);
-    else if (e.key === 'l' || e.key === 'L') panel.setOpen(!panel.open);
+    else if (e.key === 'Escape') {
+      if (help.isOpen) help.close();
+      else emit({ type: 'deselect' });
+    } else if (e.key === 'l' || e.key === 'L') panel.setOpen(!panel.open);
     else if (e.key === 'h' || e.key === 'H') setSkeleton(!overlay.showSkeleton);
     else if (e.key === 'b' || e.key === 'B') camBtn.click();
   });
@@ -252,8 +316,61 @@ function boot(): void {
       case 'hoverEnd':
         hoverPoint = null;
         break;
+      case 'select': {
+        const idx = pickAt(a.x, a.y)?.country ?? 0;
+        setSelected(idx === selected ? 0 : idx);
+        break;
+      }
+      case 'deselect':
+        setSelected(0);
+        break;
+      case 'chargeStart':
+        charge = { x: a.x, y: a.y, start: sceneTime(), level: 0 };
+        break;
+      case 'chargeMove':
+        if (charge) {
+          charge.x = a.x;
+          charge.y = a.y;
+        }
+        break;
+      case 'chargeEnd':
+        // A brief accidental hold does nothing; anything more fires the purge.
+        if (charge && a.commit && charge.level >= 0.15) purge(charge.level);
+        charge = null;
+        break;
+      case 'togglePause':
+        setPaused(!feed.paused);
+        break;
+      case 'setFilter':
+        setTypeFilter(a.filter);
+        break;
     }
   });
+
+  const tooltipFor = (index: number, lat: number, lon: number) => {
+    const f = (v: number, p: string, n: string) => `${Math.abs(v).toFixed(1)}°${v >= 0 ? p : n}`;
+    const iso = map.byIndex(index)?.iso ?? '';
+    const s = stats.country(iso);
+    const rows: [string, string][] = [];
+    if (s) {
+      const totals = ATTACK_TYPES.map(
+        (t) => [t, s.byTargetType[t] + s.bySourceType[t]] as const,
+      ).sort((a, b) => b[1] - a[1]);
+      const ago = Math.max(0, Math.round((Date.now() - s.lastSeen) / 1000));
+      rows.push(
+        ['Targeted', s.asTarget.toLocaleString('en-US')],
+        ['Origin of', s.asSource.toLocaleString('en-US')],
+        ['Mostly', ATTACK_TYPE_INFO[totals[0]![0]].label],
+        ['Last seen', ago < 2 ? 'now' : `${ago}s ago`],
+      );
+    }
+    return {
+      name: countryName(index),
+      meta: s ? `${f(lat, 'N', 'S')} ${f(lon, 'E', 'W')}` : 'No activity yet',
+      rows,
+      hint: index === selected ? 'Selected · Esc to clear' : 'Click or pinch to select',
+    };
+  };
 
   // ---- loop ----------------------------------------------------------------
   const fps = new FpsMeter();
@@ -275,19 +392,37 @@ function boot(): void {
 
     // Hover picking (once per frame, latest pointer/reticle position).
     let hovered = 0;
-    if (hoverPoint) {
-      const nx = (hoverPoint.x / stage.width) * 2 - 1;
-      const ny = -(hoverPoint.y / stage.height) * 2 + 1;
-      const hit = globe.pick(nx, ny, stage.camera, map);
+    if (hoverPoint && !charge) {
+      const hit = pickAt(hoverPoint.x, hoverPoint.y);
       hovered = hit?.country ?? 0;
-      const c = map.byIndex(hovered);
-      if (c && hit) {
-        const { lat, lon } = hit.latLon;
-        const f = (v: number, p: string, n: string) =>
-          `${Math.abs(v).toFixed(1)}°${v >= 0 ? p : n}`;
-        tooltip.show(hoverPoint.x, hoverPoint.y, c.name, `${f(lat, 'N', 'S')} ${f(lon, 'E', 'W')}`);
+      if (hit && hovered) {
+        tooltip.show(
+          hoverPoint.x,
+          hoverPoint.y,
+          tooltipFor(hovered, hit.latLon.lat, hit.latLon.lon),
+        );
       } else tooltip.hide();
     } else tooltip.hide();
+
+    // Purge charge + burst.
+    const reduced = store.get().reducedMotion;
+    if (charge) charge.level = Math.min(1, (t - charge.start) / CHARGE_TIME);
+    chargeVis += ((charge?.level ?? 0) - chargeVis) * (1 - Math.exp(-10 * dt));
+    globe.earth.setCharge(reduced ? 0 : chargeVis);
+    globe.chargeSpin = reduced ? 0 : chargeVis;
+    if (burst) {
+      const age = t - burst.start;
+      if (age > 4.5) {
+        burst = null;
+        globe.earth.setBurst(-1, 0);
+        globe.setBodyOpacity(0.55);
+      } else {
+        globe.earth.setBurst(age, burst.strength);
+        // Fade the dark planet body out while particles are scattered.
+        const scattered = reduced ? 0 : Math.min(1, age * 8) * (1 - smoothstep(1.2, 2.8, age));
+        globe.setBodyOpacity(0.55 * (1 - scattered));
+      }
+    }
     store.set({ hoveredCountry: hovered, zoom: globe.zoom });
 
     globe.earth.setTime(t);
@@ -300,12 +435,19 @@ function boot(): void {
     stage.govern(frameMs, dt);
 
     // Hand-tracking overlay + indicator.
-    if (tracker.active) {
+    const snap = tracker.active ? gestures.snapshot : null;
+    if (snap) {
       tracker.reportRenderFrame(frameMs, dt);
-      const snap = gestures.snapshot;
-      overlay.draw(snap, now, globe.zoom);
       indicator.update(snap.indicator, now - snap.t > 350, tracker.targetHz, tracker.backend ?? '');
     }
+    overlay.draw({
+      snap,
+      now,
+      zoom: globe.zoom,
+      charge: charge ? { x: charge.x, y: charge.y, level: charge.level } : null,
+      reticleHot: hovered > 0,
+      reducedMotion: reduced,
+    });
 
     // Country heat on the particles (5 Hz).
     heatTimer += dt;

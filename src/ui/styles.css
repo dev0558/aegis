@@ -201,6 +201,27 @@ button.ghost:hover {
   font-size: 20px;
   line-height: 1.1;
 }
+.tooltip .t-rows {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 14px;
+  font-size: 11px;
+  color: var(--dim);
+}
+.tooltip .t-rows b {
+  font-weight: 400;
+  color: var(--fg);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.tooltip .t-hint {
+  margin-top: 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
 .tooltip .t-meta {
   margin-top: 4px;
   font-size: 9.5px;
@@ -401,14 +422,30 @@ button.primary:hover:not(:disabled) {
   font-size: 11.5px;
   margin-bottom: 16px;
 }
-.legend li {
+.legend-item {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 2px 4px;
+  margin: 0 -4px;
+  border-radius: 6px;
   color: var(--dim);
-  transition: opacity 0.25s ease;
+  cursor: pointer;
+  transition:
+    opacity 0.25s ease,
+    background 0.2s ease;
 }
-.legend li.off {
+.legend-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg);
+}
+.legend-item:focus-visible {
+  outline: 1px solid var(--accent);
+}
+.legend-item.off {
   opacity: 0.3;
 }
 .legend b {
@@ -418,9 +455,31 @@ button.primary:hover:not(:disabled) {
   font-variant-numeric: tabular-nums;
 }
 .filter-note {
-  font-size: 11px;
-  color: var(--accent);
-  margin: -6px 0 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: -4px 0 14px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 204, 122, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 204, 122, 0.06);
+}
+.filter-note[hidden] {
+  display: none;
+}
+.fn-name {
+  font-family: var(--serif);
+  font-size: 17px;
+  color: #ffcc7a;
+}
+.fn-meta {
+  font-size: 10.5px;
+  color: var(--dim);
+  flex: 1;
+}
+.fn-clear {
+  padding: 3px 6px;
+  font-size: 9.5px;
 }
 .tops {
   display: grid;
@@ -507,6 +566,12 @@ button.primary:hover:not(:disabled) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.log li.system {
+  color: var(--accent);
+}
+.log li.system .dot {
+  --c: var(--accent);
+}
 .log li.sev-critical .route::after {
   content: ' ●';
   color: #ff5c7a;
@@ -550,6 +615,24 @@ button.primary:hover:not(:disabled) {
 .indicator[data-mode='zoom'] .ind-dot {
   background: var(--accent);
   box-shadow: 0 0 10px var(--accent);
+}
+.indicator[data-mode='point'] .ind-dot,
+.indicator[data-mode='pinch'] .ind-dot {
+  background: #fff;
+  box-shadow: 0 0 10px #fff;
+}
+.indicator[data-mode='charge'] .ind-dot {
+  background: var(--accent);
+  box-shadow: 0 0 16px var(--accent);
+  animation: pulse 0.5s ease-in-out infinite;
+}
+.indicator[data-mode='fist'] .ind-dot {
+  background: #ffcc7a;
+  box-shadow: 0 0 10px #ffcc7a;
+}
+.indicator[data-mode='count'] .ind-dot {
+  background: var(--fg);
+  box-shadow: 0 0 8px var(--fg);
 }
 .indicator[data-mode='idle'] .ind-dot {
   background: var(--fg);
